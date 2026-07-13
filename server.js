@@ -12,7 +12,7 @@ const pool = new Pool({
 });
 
 function userId(req) {
-  return Number(req.body.created_by || req.body.user_id || 1);
+  return Number(req.query.user_id || req.body.created_by || req.body.user_id || 1);
 }
 
 async function query(sql, params = []) {
@@ -136,11 +136,11 @@ app.get('/api/dashboard', async (req, res) => {
     const s = sales.reverse().map(x => Number(x.total) / 1000000);
     
     const recent_activities = await query(`
-      SELECT 'Produksi' AS type, 'Pencatatan produksi ' || jumlah_telur || ' Butir' AS desc, tanggal AS date, created_by AS user
-      FROM produksi_telur
+      SELECT 'Produksi' AS type, 'Pencatatan produksi ' || p.jumlah_telur || ' Butir' AS desc, p.tanggal AS date, u.nama AS user
+      FROM produksi_telur p LEFT JOIN users u ON p.created_by = u.id
       UNION ALL
-      SELECT 'Penjualan' AS type, 'Penjualan ' || jumlah_butir || ' Butir ke ' || pembeli AS desc, tanggal AS date, created_by AS user
-      FROM penjualan
+      SELECT 'Penjualan' AS type, 'Penjualan ' || j.jumlah_butir || ' Butir ke ' || j.pembeli AS desc, j.tanggal AS date, u.nama AS user
+      FROM penjualan j LEFT JOIN users u ON j.created_by = u.id
       ORDER BY date DESC LIMIT 3
     `);
 
@@ -152,6 +152,8 @@ app.get('/api/dashboard', async (req, res) => {
       total_penjualan: Number(totalPenjualan[0].total),
       stok_pakan: Number(feed[0].stok),
       stok_gudang: Math.max(0, Math.floor((Number(totalTelur[0].total) - Number(totalTelurTerjual[0].total)) / 30)),
+      sisa_butir: Math.max(0, (Number(totalTelur[0].total) - Number(totalTelurTerjual[0].total)) % 30),
+      total_butir: Math.max(0, (Number(totalTelur[0].total) - Number(totalTelurTerjual[0].total))),
       total_afkir: Number(afkir[0]?.total_afkir || 0),
       produksi_7_hari: p.length ? p : [0,0,0,0,0,0,0],
       pendapatan_7_hari: s.length ? s : [0,0,0,0,0,0,0],
@@ -236,7 +238,7 @@ app.post('/api/flocks', isAdmin, async (req, res) => {
 });
 
 app.get('/api/produksi', async (req, res) => {
-  try { res.json(await query('SELECT * FROM produksi_telur ORDER BY tanggal DESC, id DESC')); }
+  try { res.json(await query('SELECT p.*, u.nama as nama_petugas FROM produksi_telur p LEFT JOIN users u ON p.created_by = u.id ORDER BY p.tanggal DESC, p.id DESC')); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
