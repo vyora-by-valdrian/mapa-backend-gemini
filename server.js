@@ -94,6 +94,24 @@ app.put('/api/users/profile', async (req, res) => {
   }
 });
 
+// Fitur Ubah Password
+app.put('/api/users/change-password', async (req, res) => {
+  try {
+    const { old_password, new_password } = req.body;
+    const uid = userId(req);
+    
+    // Verifikasi password lama
+    const user = await query('SELECT id FROM users WHERE id=$1 AND password=$2', [uid, old_password]);
+    if (!user.length) return res.status(400).json({ message: 'Password lama salah!' });
+    
+    // Update ke password baru
+    await query('UPDATE users SET password=$1 WHERE id=$2', [new_password, uid]);
+    res.json({ message: 'Password berhasil diubah. Silakan login kembali dengan password baru.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/dashboard', async (req, res) => {
   try {
     const totalTelur = await query('SELECT COALESCE(SUM(jumlah_telur),0)::int AS total FROM produksi_telur');
@@ -263,6 +281,32 @@ app.post('/api/penjualan', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/crm', async (req, res) => {
+  try {
+    // Ambil semua pembeli unik, hitung total transaksi dan belanjanya
+    const rows = await query(`
+      SELECT 
+        pembeli AS name, 
+        COUNT(id) AS transactions, 
+        COALESCE(SUM(total_harga), 0)::numeric AS total
+      FROM penjualan
+      WHERE pembeli IS NOT NULL AND TRIM(pembeli) != ''
+      GROUP BY pembeli
+      ORDER BY total DESC
+    `);
+    
+    // Tambahkan rank
+    const ranked = rows.map((r, index) => ({
+      ...r,
+      rank: index + 1
+    }));
+    
+    res.json(ranked);
+  } catch (err) { 
+    res.status(500).json({ error: err.message }); 
+  }
+});
+
 app.get('/api/pakan', async (req, res) => {
   try { res.json(await query('SELECT * FROM pakan ORDER BY id DESC')); }
   catch (err) { res.status(500).json({ error: err.message }); }
@@ -338,7 +382,10 @@ async function migrateDatabase() {
     await pool.query('ALTER TABLE produksi_telur ADD COLUMN IF NOT EXISTS telur_rusak INT DEFAULT 0');
     await pool.query('ALTER TABLE produksi_telur ADD COLUMN IF NOT EXISTS telur_abnormal INT DEFAULT 0');
 
-    // 4. Seed Data Baru (Hanya jika kosong)
+    // 4. Bersihkan data dummy lama (Grade A) agar analytics rapi
+    await pool.query("DELETE FROM penjualan WHERE jenis_telur = 'Grade A'");
+    
+    // 5. Seed Data Baru (Hanya jika kosong)
     const check = await pool.query('SELECT COUNT(*) FROM jenis_telur_master');
     if (Number(check.rows[0].count) === 0) {
       await pool.query(`
