@@ -190,9 +190,20 @@ app.get('/api/analytics', async (req, res) => {
       ORDER BY hari ASC
     `);
 
+    const { filter } = req.query;
+    let filterCondition = "";
+    if (filter === 'Minggu Ini') {
+      filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '7 days'";
+    } else if (filter === 'Bulan Ini') {
+      filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '30 days'";
+    } else if (filter === 'Tahun Ini') {
+      filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '1 year'";
+    }
+
     const komposisi_penjualan = await query(`
       SELECT jenis_telur as grade, COALESCE(SUM(jumlah_butir), 0)::int AS qty, COALESCE(SUM(total_harga), 0)::numeric AS revenue
       FROM penjualan
+      ${filterCondition}
       GROUP BY grade
       ORDER BY revenue DESC
     `);
