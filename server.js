@@ -147,8 +147,22 @@ app.get('/api/dashboard', async (req, res) => {
     // Info telur rusak di dashboard
     const afkir = await query('SELECT COALESCE(SUM(telur_rusak + telur_abnormal),0)::int AS total_afkir FROM produksi_telur');
 
+    // Persentase Kenaikan Pendapatan (Bulan Ini vs Bulan Lalu)
+    const currentMonthRevenue = await query(`SELECT COALESCE(SUM(total_harga),0)::numeric AS total FROM penjualan WHERE date_trunc('month', tanggal) = date_trunc('month', CURRENT_DATE)`);
+    const lastMonthRevenue = await query(`SELECT COALESCE(SUM(total_harga),0)::numeric AS total FROM penjualan WHERE date_trunc('month', tanggal) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month')`);
+    
+    let penjualan_percentage = 0;
+    const curRev = Number(currentMonthRevenue[0].total);
+    const lastRev = Number(lastMonthRevenue[0].total);
+    if (lastRev > 0) {
+      penjualan_percentage = ((curRev - lastRev) / lastRev) * 100;
+    } else if (curRev > 0) {
+      penjualan_percentage = 100;
+    }
+
     res.json({
       total_telur: Number(totalTelur[0].total),
+      penjualan_percentage: Math.round(penjualan_percentage),
       total_penjualan: Number(totalPenjualan[0].total),
       stok_pakan: Number(feed[0].stok),
       stok_gudang: Math.max(0, Math.floor((Number(totalTelur[0].total) - Number(totalTelurTerjual[0].total)) / 30)),
@@ -192,12 +206,23 @@ app.get('/api/analytics', async (req, res) => {
 
     const { filter } = req.query;
     let filterCondition = "";
-    if (filter === 'Minggu Ini') {
-      filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '7 days'";
-    } else if (filter === 'Bulan Ini') {
-      filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '30 days'";
-    } else if (filter === 'Tahun Ini') {
-      filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '1 year'";
+    if (filter) {
+      if (filter === 'Bulan Ini') filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '30 days'";
+      else if (filter === 'Januari') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 1";
+      else if (filter === 'Februari') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 2";
+      else if (filter === 'Maret') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 3";
+      else if (filter === 'April') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 4";
+      else if (filter === 'Mei') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 5";
+      else if (filter === 'Juni') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 6";
+      else if (filter === 'Juli') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 7";
+      else if (filter === 'Agustus') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 8";
+      else if (filter === 'September') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 9";
+      else if (filter === 'Oktober') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 10";
+      else if (filter === 'November') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 11";
+      else if (filter === 'Desember') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 12";
+      else if (filter === 'Tahun 2024') filterCondition = "WHERE EXTRACT(YEAR FROM tanggal) = 2024";
+      else if (filter === 'Tahun 2025') filterCondition = "WHERE EXTRACT(YEAR FROM tanggal) = 2025";
+      else if (filter === 'Tahun 2026') filterCondition = "WHERE EXTRACT(YEAR FROM tanggal) = 2026";
     }
 
     const komposisi_penjualan = await query(`
