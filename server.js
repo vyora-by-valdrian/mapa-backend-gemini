@@ -208,6 +208,8 @@ app.get('/api/analytics', async (req, res) => {
     let filterCondition = "";
     if (filter) {
       if (filter === 'Bulan Ini') filterCondition = "WHERE tanggal >= CURRENT_DATE - INTERVAL '30 days'";
+      else if (filter === 'Minggu Ini') filterCondition = "WHERE tanggal >= date_trunc('week', CURRENT_DATE)";
+      else if (filter === 'Minggu Lalu') filterCondition = "WHERE tanggal >= date_trunc('week', CURRENT_DATE - INTERVAL '1 week') AND tanggal < date_trunc('week', CURRENT_DATE)";
       else if (filter === 'Januari') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 1";
       else if (filter === 'Februari') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 2";
       else if (filter === 'Maret') filterCondition = "WHERE EXTRACT(MONTH FROM tanggal) = 3";
